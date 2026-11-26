@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bea Su Si</title>
+<style>
+/* Layout: one screen — header, a scrolling conversation, and the answer dock fixed at the foot. Runs in a browser. */
+:root {
+  --bg: #f8f5f5; --surface: #ffffff; --ink: #1f1718; --muted: #6e6264; --line: #e7dddd;
+  --accent: #b71c1c; --accent-ink: #ffffff; --accent-soft: #f6e3e3;
+  --bad: #c62828; --bad-soft: #fde4e4; --good: #2e7d32;
+  --f-hanzi: "Noto Serif CJK TC", "Noto Serif TC", "Source Han Serif TC", serif;
+  --f-answer: "Noto Sans CJK TC", "Noto Sans TC", "Source Han Sans TC", sans-serif;
+  --f-ui: system-ui, "Roboto", "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #161112; --surface: #211a1b; --ink: #f4ecec; --muted: #b2a4a6; --line: #3a2e30;
+    --accent: #e0464b; --accent-soft: #3a1f21; --bad: #ff6f6f; --bad-soft: #4a1f22; --good: #74d08a; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--f-ui); font-size: 17px; line-height: 1.5; }
+[hidden] { display: none !important; }
+.app { max-width: 820px; margin: 0 auto; height: 100%; display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
+header { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; padding-block: 16px 12px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.seal { flex: none; width: 50px; height: 50px; border-radius: 6px; background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center; font-family: var(--f-hanzi); font-weight: 700; font-size: 29px; line-height: 1; transform: rotate(-3deg); }
+h1 { margin: 0; font-size: 1.55rem; line-height: 1.1; }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 0.88rem; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tools label { font-size: 0.82rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+select, .chip, .btn, input[type=text] { font: inherit; font-size: 0.92rem; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px; }
+.chip, .btn { cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#words { flex: none; max-height: 40%; overflow-y: auto; margin-top: 12px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+#words h2 { margin: 0 0 4px; font-size: 1rem; }
+#words p { margin: 0 0 10px; color: var(--muted); font-size: 0.85rem; }
+.wgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+.w { padding: 6px 8px; border-radius: 6px; background: var(--bg); min-width: 0; }
+.w b { display: block; font-family: var(--f-hanzi); font-size: 1.3rem; font-weight: 500; }
+.w i { display: block; font-style: normal; font-size: 0.8rem; color: var(--accent); }
+.w span { display: block; font-size: 0.76rem; color: var(--muted); overflow-wrap: anywhere; }
+#log { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 18px; padding-block: 20px 26px; }
+.turn { min-width: 0; }
+.who { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.bot .zh { font-family: var(--f-hanzi); font-weight: 500; font-size: clamp(2rem, 6.4vw, 2.8rem); line-height: 1.3; margin: 4px 0 0; overflow-wrap: anywhere; }
+.bot .react { font-size: 0.72em; color: var(--muted); }
+ruby { ruby-position: under; margin-right: 0.08em; }
+rt { font-family: var(--f-ui); font-size: 0.4em; font-weight: 500; color: var(--accent); padding-top: 0.25em; }
+.punct { margin-right: 0.1em; }
+.en { margin: 6px 0 0; color: var(--muted); font-size: 0.95rem; }
+.say { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 2px 4px; border-radius: 4px; font: inherit; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; }
+.me { margin-left: clamp(0px, 8vw, 64px); padding: 12px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.me .zh { font-family: var(--f-answer); font-size: clamp(1.45rem, 4.6vw, 1.85rem); margin: 4px 0 0; overflow-wrap: anywhere; }
+.bad { color: var(--bad); background: var(--bad-soft); text-decoration: underline wavy var(--bad); text-underline-offset: 0.18em; border-radius: 3px; padding: 0 1px; }
+.extra { color: var(--good); }
+.lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-right: 6px; }
+.fix { margin: 8px 0 0; font-size: 0.95rem; }
+.fix .lbl { color: var(--good); }
+.fix .fz { font-family: var(--f-answer); font-size: 1.2rem; }
+.fix .fp { display: block; color: var(--muted); font-size: 0.86rem; }
+.tip { margin: 4px 0 0; font-size: 0.92rem; color: var(--muted); }
+.ok, .praise { margin: 6px 0 0; font-size: 0.9rem; color: var(--good); }
+.ok { font-weight: 600; }
+.meta { margin: 6px 0 0; font-size: 0.85rem; color: var(--muted); }
+.summary { padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.summary h2 { margin: 0 0 6px; font-size: 1.1rem; }
+.summary ol { margin: 8px 0 0; padding-left: 1.2em; }
+.summary li { margin-bottom: 6px; font-family: var(--f-answer); }
+.summary li small { display: block; font-family: var(--f-ui); color: var(--muted); }
+.dock { flex: none; background: var(--bg); border-top: 1px solid var(--line); padding-block: 10px calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 10px; }
+.meter { display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 30px; }
+.meter i { display: block; width: 8px; border-radius: 2px; background: var(--line); }
+.meter i.lit { background: var(--accent); }
+.meter i:nth-child(1){height:20%}.meter i:nth-child(2){height:30%}.meter i:nth-child(3){height:40%}.meter i:nth-child(4){height:50%}.meter i:nth-child(5){height:60%}
+.meter i:nth-child(6){height:70%}.meter i:nth-child(7){height:80%}.meter i:nth-child(8){height:90%}.meter i:nth-child(9){height:100%}
+.live { min-height: 1.6em; font-family: var(--f-answer); font-size: 1.3rem; color: var(--muted); text-align: center; overflow-wrap: anywhere; }
+.controls { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.mic { display: flex; align-items: center; gap: 10px; border: 0; cursor: pointer; border-radius: 999px; padding: 15px 28px; background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 700; font-size: 1.1rem; }
+.mic svg { width: 26px; height: 26px; }
+.mic.on { box-shadow: 0 0 0 6px var(--accent-soft); }
+.mic:disabled { opacity: 0.45; }
+.btn:disabled { opacity: 0.5; }
+details { font-size: 0.86rem; color: var(--muted); }
+summary { cursor: pointer; width: max-content; max-width: 100%; }
+.type { display: flex; gap: 8px; margin-top: 8px; }
+.type input { flex: 1; min-width: 0; }
+#status { margin: 0; text-align: center; font-size: 0.88rem; color: var(--muted); min-height: 1.3em; }
+.gate { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: grid; place-items: center; text-align: center; padding: 24px; }
+.gate .seal { width: 84px; height: 84px; font-size: 48px; border-radius: 10px; margin: 0 auto 20px; }
+.gate h1 { font-size: 2rem; }
+.gate p { color: var(--muted); margin: 6px 0 22px; }
+.gate .mic { margin: 0 auto; }
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <div>
+    <div class="seal" aria-hidden="true">說</div>
+    <h1>Bea Su Si</h1>
+    <p>Mandarin conversation for beginners · 100 words · 繁體字</p>
+    <button class="mic" id="gateBtn" type="button">開始 · Tap to start</button>
+  </div>
+</div>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="seal" aria-hidden="true">說</div>
+      <div>
+        <h1>Bea Su Si</h1>
+        <p class="sub">Mandarin conversation for beginners · 100 words · 繁體字</p>
+      </div>
+    </div>
+    <div class="tools">
+      <label for="speed">Speed <select id="speed"><option value="0.75">Slow</option><option value="0.9" selected>Steady</option><option value="1">Normal</option></select></label>
+      <button class="chip" id="enToggle" aria-pressed="false">English</button>
+      <button class="chip" id="wordsToggle" aria-pressed="false">100 words</button>
+    </div>
+  </header>
+
+  <section id="words" hidden>
+    <h2>The 100 words Bea Su Si uses</h2>
+    <p>Taiwan Mandarin, Traditional characters. You can use other words too; Bea will notice.</p>
+    <div class="wgrid" id="wgrid"></div>
+  </section>
+
+  <main id="log" aria-live="polite"></main>
+
+  <div class="dock">
+    <div class="meter" id="meter" hidden><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="live" id="live"></div>
+    <div class="controls" id="controls">
+      <button class="btn" id="replay">Hear again</button>
+      <button class="mic" id="mic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
+        <span id="micLabel">Answer</span>
+      </button>
+      <button class="btn" id="end">End conversation</button>
+    </div>
+    <details id="typeBox">
+      <summary>Type an answer instead</summary>
+      <form class="type" id="typeForm">
+        <input type="text" id="typed" autocomplete="off" placeholder="Chinese characters" aria-label="Typed answer">
+        <button class="btn" type="submit">Send</button>
+      </form>
+    </details>
+    <p id="status">Press Answer, speak in Chinese, and Bea will listen until you stop.</p>
+  </div>
+</div>
+<audio id="player" preload="auto"></audio>
+<script src="bank.js"></script>
+<script>
+"use strict";
+const B = window.BANK;
+const $ = id => document.getElementById(id);
+const log = $("log"), live = $("live"), statusEl = $("status"), mic = $("mic"), micLabel = $("micLabel"), player = $("player");
+let NATIVE = null;  // assigned below once the browser speech bridge is built
+
+/* ---------- Text tools ---------- */
+const PUNCT = /[\s，。！？、；：,.!?;:'"“”‘’（）()…~～-]/g;
+const S2T = {"们":"們","这":"這","么":"麼","谁":"誰","里":"裡","几":"幾","吗":"嗎","没":"沒","欢":"歡","来":"來","说":"說","会":"會","买":"買","学":"學","贵":"貴","热":"熱","师":"師","妈":"媽","湾":"灣","国":"國","饭":"飯","面":"麵","现":"現","号":"號","点":"點","两":"兩","个":"個","块":"塊","岁":"歲","书":"書","气":"氣","谢":"謝","见":"見","钱":"錢","为":"為","时":"時","对":"對","还":"還","给":"給","边":"邊","东":"東","车":"車","儿":"兒","间":"間","电":"電","视":"視","乐":"樂","爱":"愛","运":"運","动":"動","观":"觀","听":"聽","写":"寫","读":"讀","语":"語","汉":"漢","哪儿":"哪裡"};
+const DIG = "零一二三四五六七八九";
+function numToZh(n) {
+  n = Number(n); if (!Number.isFinite(n) || n < 0 || n > 9999) return String(n);
+  if (n < 10) return DIG[n];
+  if (n < 20) return "十" + (n % 10 ? DIG[n % 10] : "");
+  if (n < 100) return DIG[Math.floor(n / 10)] + "十" + (n % 10 ? DIG[n % 10] : "");
+  if (n >= 1000 && n <= 2099 && String(n).length === 4) return String(n).split("").map(d => DIG[d]).join(""); // years: 二〇二六 style
+  return String(n).split("").map(d => DIG[d]).join("");
+}
+function normalise(text) {
+  let t = String(text || "");
+  t = t.replace(/[0-9０-９]+/g, m => numToZh(m.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))));
+  t = t.replace(/哪儿/g, "哪裡");
+  t = [...t].map(c => S2T[c] || c).join("");
+  return t.replace(PUNCT, "");
+}
+const VOCAB_MAP = new Map(B.vocab.map(v => [v[0], v[1]]));
+const VOCAB_CHARS = new Set(B.vocab.flatMap(v => [...v[0]]));
+const MAXW = Math.max(...B.vocab.map(v => v[0].length));
+function toRuby(text) {
+  // Split into list words (with pinyin); anything else is shown without pinyin.
+  const out = []; let i = 0; const s = [...text];
+  while (i < s.length) {
+    let hit = null;
+    for (let L = Math.min(MAXW, s.length - i); L >= 1; L--) { const w = s.slice(i, i + L).join(""); if (VOCAB_MAP.has(w)) { hit = w; break; } }
+    if (hit) { out.push([hit, VOCAB_MAP.get(hit)]); i += [...hit].length; }
+    else { out.push([s[i], ""]); i++; }
+  }
+  return out;
+}
+function pinyinOf(text) { return toRuby(text).map(p => p[1] || p[0]).join(" ").replace(/\s([，。！？])/g, "$1").replace(/\s+/g, " ").trim(); }
+
+/* ---------- Matching an answer against one acceptable pattern ---------- */
+const NUMCH = new Set([..."零一二三四五六七八九十兩〇"]);
+function tokens(pattern) {
+  const out = []; const re = /\{(NAME|NUM|PLACE)\}/g; let last = 0, m;
+  const lit = s => { for (const c of normalise(s)) out.push({ c }); };
+  while ((m = re.exec(pattern))) { lit(pattern.slice(last, m.index)); out.push({ slot: m[1] }); last = re.lastIndex; }
+  lit(pattern.slice(last));
+  return out;
+}
+// Edit-distance alignment: returns cost and, per answer character, "ok" | "bad" | "slot" | "extra", plus slot fills and edits.
+function align(ans, pat) {
+  const A = [...ans], P = pat, n = A.length, m = P.length;
+  const INF = 1e9;
+  const D = Array.from({ length: n + 1 }, () => new Float64Array(m + 1).fill(INF));
+  const BK = Array.from({ length: n + 1 }, () => new Array(m + 1));
+  D[0][0] = 0;
+  const extraCost = c => (VOCAB_CHARS.has(c) || NUMCH.has(c)) ? 1 : 0.35; // words beyond the 100 cost little
+  for (let i = 0; i <= n; i++) for (let j = 0; j <= m; j++) {
+    const d = D[i][j]; if (d >= INF) continue;
+    // insertion: extra answer char
+    if (i < n && d + extraCost(A[i]) < D[i + 1][j]) { D[i + 1][j] = d + extraCost(A[i]); BK[i + 1][j] = ["ins", i, j]; }
+    if (j < m) {
+      const t = P[j];
+      if (t.slot) {
+        const max = t.slot === "NAME" ? 4 : t.slot === "PLACE" ? 5 : 6;
+        if (d + 1.5 < D[i][j + 1]) { D[i][j + 1] = d + 1.5; BK[i][j + 1] = ["slot0", i, j]; }
+        for (let k = 1; k <= max && i + k <= n; k++) {
+          const piece = A.slice(i, i + k);
+          let c = d;
+          if (t.slot === "NUM" && !piece.every(ch => NUMCH.has(ch))) c += 2;
+          if (c < D[i + k][j + 1]) { D[i + k][j + 1] = c; BK[i + k][j + 1] = ["slot", i, j, k]; }
+        }
+      } else {
+        if (d + 1 < D[i][j + 1]) { D[i][j + 1] = d + 1; BK[i][j + 1] = ["del", i, j]; }
+        if (i < n) {
+          const c = d + (A[i] === t.c ? 0 : 1);
+          if (c < D[i + 1][j + 1]) { D[i + 1][j + 1] = c; BK[i + 1][j + 1] = [A[i] === t.c ? "eq" : "sub", i, j]; }
+        }
+      }
+    }
+  }
+  const marks = new Array(n).fill("ok"), fills = {}, edits = [];
+  let i = n, j = m;
+  while (i > 0 || j > 0) {
+    const b = BK[i][j]; if (!b) break;
+    const [op, pi, pj, k] = b;
+    if (op === "ins") { marks[pi] = extraCost(A[pi]) < 1 ? "extra" : "bad"; if (marks[pi] === "bad") edits.unshift({ type: "extra", got: A[pi] }); }
+    else if (op === "sub") { marks[pi] = "bad"; edits.unshift({ type: "sub", got: A[pi], want: P[pj].c }); }
+    else if (op === "del") { edits.unshift({ type: "missing", want: P[pj].c, at: pi }); }
+    else if (op === "slot") { for (let q = pi; q < pi + k; q++) marks[q] = "slot"; fills[P[pj].slot] = A.slice(pi, pi + k).join(""); }
+    else if (op === "slot0") { edits.unshift({ type: "missing", want: "…", at: pi }); }
+    i = pi; j = pj;
+  }
+  const litLen = P.filter(t => !t.slot).length + P.filter(t => t.slot).length * 2;
+  return { cost: D[n][m], ratio: D[n][m] / Math.max(1, Math.max(litLen, n)), marks, fills, edits };
+}
+function fill(pattern, fills) {
+  return pattern.replace(/\{(NAME|NUM|PLACE)\}/g, (_, s) => fills[s] || (s === "NUM" ? "三" : "＿＿"));
+}
+function judge(alternatives, q) {
+  let best = null;
+  for (const alt of alternatives) {
+    const ans = normalise(alt);
+    if (!ans) continue;
+    for (const a of q.a) {
+      const r = align(ans, tokens(a.a));
+      if (!best || r.ratio < best.ratio || (r.ratio === best.ratio && r.cost < best.cost)) best = { ...r, ans, a };
+    }
+  }
+  if (!best) return null;
+  const count = k => best.marks.filter(x => x === k).length;
+  const matched = count("ok") + count("slot"), extra = count("extra");
+  const patLit = tokens(best.a.a).filter(t => !t.slot).length;
+  const okCovered = tokens(best.a.a).filter(t => !t.slot).length - best.edits.filter(e => e.type === "missing" || e.type === "sub").length;
+  // Words beyond the 100 are welcome, but only around a recognisable answer.
+  const recognisable = matched >= Math.max(1, Math.ceil(patLit * 0.6)) && extra <= Math.max(2, matched) && (patLit === 0 || okCovered / patLit >= 0.5);
+  if (!recognisable) best.verdict = "nonsense";
+  else if (!best.edits.length) best.verdict = "correct";
+  else best.verdict = best.ratio <= 0.45 ? "mistakes" : "nonsense";
+  return best;
+}
+// Word-level comparison of what was said with the correct sentence, for the tip line.
+function wordTip(said, model) {
+  const a = toRuby(said).map(x => x[0]).filter(w => !PUNCT.test(w)), b = toRuby(normalise(model)).map(x => x[0]);
+  PUNCT.lastIndex = 0;
+  const n = a.length, m = b.length, L = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = a[i] === b[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const ops = []; let i = 0, j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && a[i] === b[j]) { i++; j++; continue; }
+    const got = [], want = [];
+    while (i < n && (j >= m || L[i + 1][j] >= L[i][j + 1]) && !(j < m && a[i] === b[j])) got.push(a[i++]);
+    while (j < m && (i >= n || L[i][j + 1] > L[i + 1][j] || got.length) && !(i < n && a[i] === b[j])) want.push(b[j++]);
+    if (!got.length && !want.length) { if (i < n) got.push(a[i++]); else want.push(b[j++]); }
+    if (got.length && want.length) ops.push(`say ${want.join("")} instead of ${got.join("")}`);
+    else if (want.length) ops.push(`${want.join("")} is missing`);
+    else ops.push(`${got.join("")} isn't needed here`);
+  }
+  if (!ops.length) return "";
+  const t = ops.slice(0, 3).join("; ");
+  return t[0].toUpperCase() + t.slice(1) + ".";
+}
+
+/* ---------- Conversation state ---------- */
+let current = null;         // question id
+let topic = null, inTopic = 0, topicLimit = 8;
+let asked = new Set();
+let ended = false, listening = false, thinking = false;
+let stats = { answers: 0, withMistakes: 0, fixes: [], extra: 0 };
+let showEn = false, rate = 0.9;
+let seen = new Set();
+try { seen = new Set(JSON.parse(localStorage.getItem("bss_seen") || "[]")); } catch {}
+function remember(id) { seen.add(id); if (seen.size >= Object.keys(B.q).length * 0.9) seen = new Set([id]); try { localStorage.setItem("bss_seen", JSON.stringify([...seen])); } catch {} }
+
+const setStatus = t => { statusEl.textContent = t; };
+const scrollEnd = () => requestAnimationFrame(() => log.scrollTo({ top: log.scrollHeight, behavior: "smooth" }));
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const fresh = ids => { const a = ids.filter(id => !asked.has(id) && !seen.has(id)); return a.length ? a : ids.filter(id => !asked.has(id)); };
+
+function rubyLine(words, cls) {
+  const p = document.createElement("span"); if (cls) p.className = cls;
+  for (const [h, py] of words) {
+    if (!py) { const s = document.createElement("span"); s.className = "punct"; s.textContent = h; p.append(s); continue; }
+    const r = document.createElement("ruby"); r.append(document.createTextNode(h));
+    const rt = document.createElement("rt"); rt.textContent = py; r.append(rt); p.append(r);
+  }
+  return p;
+}
+
+/* ---------- Audio ---------- */
+let queue = [];
+function playQueue(files) {
+  queue = files.slice(); player.pause(); nextClip();
+}
+function nextClip() {
+  const f = queue.shift(); if (!f) return;
+  player.src = f; player.playbackRate = rate; player.play().catch(() => setStatus("Press Hear again to listen."));
+}
+player.addEventListener("ended", nextClip);
+function stopAudio() { queue = []; player.pause(); NATIVE?.stopSpeaking?.(); }
+
+/* ---------- Turns ---------- */
+function ask(id, reactIdx) {
+  const q = B.q[id]; current = id; asked.add(id); remember(id);
+  if (q.t !== topic) { topic = q.t; inTopic = 0; topicLimit = 6 + Math.floor(Math.random() * 5); }
+  inTopic++;
+  const a = document.createElement("article"); a.className = "turn bot";
+  const who = document.createElement("div"); who.className = "who"; who.textContent = "Bea Su Si";
+  const files = [];
+  const react = reactIdx >= 0 ? B.reacts[reactIdx] : null;
+  if (react) files.push(react.audio);
+  files.push(q.audio);
+  const say = document.createElement("button"); say.className = "say"; say.type = "button"; say.textContent = "Play";
+  say.addEventListener("click", () => playQueue(files));
+  who.append(say);
+  const zh = document.createElement("p"); zh.className = "zh";
+  if (react) { zh.append(rubyLine(react.w, "react"), document.createElement("br")); }
+  zh.append(rubyLine(q.w));
+  const en = document.createElement("p"); en.className = "en"; en.textContent = (react ? react.en + " " : "") + q.en; en.hidden = !showEn;
+  a.append(who, zh, en); log.append(a); scrollEnd();
+  lastFiles = files;
+  playQueue(files);
+}
+let lastFiles = [];
+
+function nextQuestion(match) {
+  let id = null;
+  const okAnswer = match && match.verdict !== "nonsense";
+  if (okAnswer && match.a.next?.length) { const f = fresh(match.a.next.filter(n => B.q[n])); if (f.length) id = pick(f); }
+  if (!id && inTopic < topicLimit) { const f = fresh(B.topics[topic].q); if (f.length) id = pick(f); }
+  if (!id) {
+    const others = Object.keys(B.topics).filter(t => t !== topic);
+    const t = pick(others); const f = fresh(B.topics[t].open); id = pick(f.length ? f : B.topics[t].q);
+  }
+  const r = okAnswer && Number.isInteger(match.a.r) ? match.a.r : -1;
+  ask(id, r);
+}
+
+function showAnswer(alternatives) {
+  const q = B.q[current];
+  const m = judge(alternatives, q);
+  const a = document.createElement("article"); a.className = "turn me";
+  const who = document.createElement("div"); who.className = "who"; who.textContent = "You";
+  const zh = document.createElement("p"); zh.className = "zh";
+  a.append(who, zh);
+  stats.answers++;
+  if (!m) { zh.textContent = alternatives[0] || ""; a.append(Object.assign(document.createElement("p"), { className: "meta", textContent: "Bea couldn't read that answer." })); log.append(a); scrollEnd(); return null; }
+  const chars = [...m.ans];
+  chars.forEach((c, k) => {
+    const sp = document.createElement("span"); sp.textContent = c;
+    const mk = m.verdict === "nonsense" ? "bad" : m.marks[k];
+    if (mk === "bad") sp.className = "bad"; else if (mk === "extra") sp.className = "extra";
+    zh.append(sp);
+  });
+  zh.append("。");
+  const eng = document.createElement("p"); eng.className = "en";
+  if (m.verdict !== "nonsense") { eng.textContent = "“" + fill(m.a.en, m.fills) + "”"; a.append(eng); }
+  const extras = chars.filter((c, k) => m.marks[k] === "extra");
+  if (m.verdict === "correct") {
+    a.append(Object.assign(document.createElement("p"), { className: "ok", textContent: "No mistakes" }));
+  } else {
+    const model = m.verdict === "nonsense" ? fill((q.a.find(x => !/\{/.test(x.a)) || q.a[0]).a, {}) : fill(m.a.a, m.fills);
+    if (m.verdict === "nonsense") a.append(Object.assign(document.createElement("p"), { className: "tip", textContent: "Bea didn't understand that as an answer to the question." }));
+    const f = document.createElement("p"); f.className = "fix";
+    const l = document.createElement("span"); l.className = "lbl"; l.textContent = m.verdict === "nonsense" ? "You could say" : "Correct";
+    const fz = document.createElement("span"); fz.className = "fz"; fz.textContent = model;
+    const fp = document.createElement("span"); fp.className = "fp"; fp.textContent = pinyinOf(model);
+    f.append(l, fz);
+    if (NATIVE?.speak) { const s = document.createElement("button"); s.className = "say"; s.type = "button"; s.textContent = "Play"; s.addEventListener("click", () => NATIVE.speak(model, rate)); f.append(s); }
+    f.append(fp); a.append(f);
+    if (m.verdict === "mistakes") { const t = wordTip(m.ans, model); if (t) a.append(Object.assign(document.createElement("p"), { className: "tip", textContent: t })); }
+    stats.withMistakes++; stats.fixes.push({ said: m.ans, fixed: model });
+  }
+  if (extras.length && m.verdict !== "nonsense") {
+    const pr = document.createElement("p"); pr.className = "praise";
+    const l = document.createElement("span"); l.className = "lbl"; l.textContent = "Beyond the 100";
+    pr.append(l, `Well done for using ${extras.join("")}, which goes beyond the 100 words.`);
+    a.append(pr); stats.extra += extras.length;
+  }
+  log.append(a); scrollEnd();
+  return m;
+}
+
+function submit(alternatives) {
+  if (ended) return;
+  alternatives = (alternatives || []).map(s => String(s || "").trim()).filter(Boolean);
+  live.textContent = "";
+  if (!alternatives.length) { setStatus("I didn't catch anything. Press Answer and try again."); return; }
+  const m = showAnswer(alternatives);
+  setStatus("Press Answer to reply.");
+  setTimeout(() => { if (!ended) nextQuestion(m); }, 900);
+}
+
+/* ---------- Microphone (browser speech recognition) ---------- */
+const meter = $("meter"), rungs = [...meter.children];
+function drawMeter(level) { rungs.forEach((r, i) => r.classList.toggle("lit", i < level)); }
+window.onSpeech = ev => {
+  if (ev.type === "ready") { listening = true; meter.hidden = false; drawMeter(0); setStatus("Listening… speak in Chinese."); }
+  else if (ev.type === "rms") { drawMeter(Math.max(0, Math.min(9, Math.round((ev.rms + 2) / 1.2)))); }
+  else if (ev.type === "partial") { live.textContent = normalise(ev.text || ""); }
+  else if (ev.type === "results") { listening = false; meter.hidden = true; submit(ev.texts || []); }
+  else if (ev.type === "error") {
+    listening = false; meter.hidden = true; live.textContent = "";
+    const msg = {
+      6: "I didn't hear anything. Press Answer and try again.",
+      7: "I didn't catch that. Press Answer and try again.",
+      9: "Bea needs permission to use the microphone. Press Answer again and choose Allow.",
+      2: "The microphone needs an internet connection. Check Wi-Fi and press Answer again.",
+      4: "The microphone needs an internet connection. Check Wi-Fi and press Answer again.",
+      8: "The microphone is busy. Try again in a moment.",
+      0: "This browser can't use the microphone. Type your answer below, or try Chrome."
+    }[ev.code] || "The microphone stopped. Press Answer and try again.";
+    setStatus(msg);
+    if (ev.code === 0) $("typeBox").open = true;
+  }
+  else if (ev.type === "end") { listening = false; meter.hidden = true; }
+  setUI();
+};
+
+/* Browser speech bridge: Web Speech API for listening, speechSynthesis for the corrected-answer voice,
+   and a live microphone level meter via getUserMedia + an AnalyserNode. Emits the same events the
+   engine already understands, so the conversation logic is unchanged. */
+function makeWebSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const synth = window.speechSynthesis || null;
+  function speak(text, r) {
+    if (!synth) return;
+    try {
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "zh-TW"; u.rate = Math.max(0.6, Math.min(1, r || 0.9));
+      const vs = synth.getVoices() || [];
+      const v = vs.find(x => /zh[-_]?(TW|Hant)/i.test(x.lang)) || vs.find(x => /^zh/i.test(x.lang));
+      if (v) u.voice = v;
+      synth.speak(u);
+    } catch {}
+  }
+  function stopSpeaking() { try { synth && synth.cancel(); } catch {} }
+  if (!SR) return synth ? { startListening: null, stopListening() {}, cancelListening() {}, speak, stopSpeaking } : null;
+
+  let rec = null, audioCtx = null, analyser = null, micStream = null, raf = 0, done = false;
+  function levelLoop() {
+    if (!analyser) return;
+    const buf = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+    const amp = Math.sqrt(sum / buf.length);
+    const level = Math.max(0, Math.min(9, Math.round(amp * 55)));
+    window.onSpeech({ type: "rms", rms: level * 1.2 - 2 });
+    raf = requestAnimationFrame(levelLoop);
+  }
+  async function startMeter() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(micStream);
+      analyser = audioCtx.createAnalyser(); analyser.fftSize = 512;
+      src.connect(analyser); levelLoop();
+    } catch {}
+  }
+  function stopMeter() {
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    analyser = null;
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; }
+  }
+  return {
+    startListening(lang) {
+      done = false;
+      try { rec = new SR(); } catch { window.onSpeech({ type: "error", code: 0 }); return; }
+      rec.lang = lang || "zh-TW"; rec.interimResults = true; rec.maxAlternatives = 5; rec.continuous = false;
+      rec.onstart = () => { window.onSpeech({ type: "ready" }); startMeter(); };
+      rec.onresult = e => {
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const res = e.results[i];
+          if (res.isFinal) {
+            const alts = []; for (let k = 0; k < res.length; k++) alts.push(res[k].transcript);
+            done = true; stopMeter();
+            window.onSpeech({ type: "results", texts: alts });
+            return;
+          } else interim += res[0].transcript;
+        }
+        if (interim) window.onSpeech({ type: "partial", text: interim });
+      };
+      rec.onerror = e => {
+        stopMeter();
+        const map = { "no-speech": 7, "not-allowed": 9, "service-not-allowed": 9, "network": 2, "audio-capture": 0, "aborted": -1 };
+        const code = (e && e.error in map) ? map[e.error] : 1;
+        if (code === -1) { window.onSpeech({ type: "end" }); return; }
+        done = true; window.onSpeech({ type: "error", code });
+      };
+      rec.onend = () => { stopMeter(); if (!done) window.onSpeech({ type: "end" }); };
+      try { rec.start(); } catch { window.onSpeech({ type: "error", code: 8 }); }
+    },
+    stopListening() { try { rec && rec.stop(); } catch {} },
+    cancelListening() { done = true; try { rec && rec.abort(); } catch {} stopMeter(); },
+    speak, stopSpeaking
+  };
+}
+NATIVE = makeWebSpeech();
+
+mic.addEventListener("click", () => {
+  if (ended) return;
+  if (listening) { NATIVE?.stopListening?.(); setStatus("Finishing…"); return; }
+  stopAudio();
+  live.textContent = "";
+  if (!NATIVE || !NATIVE.startListening) { $("typeBox").open = true; setStatus("This browser can't use the microphone. Try Chrome, or type your answer below."); return; }
+  NATIVE.startListening("zh-TW");
+  setStatus("Starting the microphone…");
+});
+
+function setUI() {
+  mic.disabled = ended;
+  mic.classList.toggle("on", listening);
+  micLabel.textContent = listening ? "Done" : "Answer";
+  $("replay").disabled = listening || !lastFiles.length;
+}
+
+/* ---------- Ending ---------- */
+function endConversation() {
+  if (ended) return; ended = true;
+  if (listening) NATIVE?.cancelListening?.();
+  stopAudio(); live.textContent = ""; meter.hidden = true;
+  const s = document.createElement("section"); s.className = "summary";
+  const h = document.createElement("h2"); h.textContent = "再見！ Conversation ended";
+  const p = document.createElement("p");
+  p.textContent = stats.answers ? `You answered ${stats.answers} question${stats.answers === 1 ? "" : "s"}. ${stats.withMistakes ? stats.withMistakes + " had mistakes to look at again." : "No mistakes at all."}` : "You didn't answer any questions this time.";
+  if (stats.extra) p.textContent += ` You also used ${stats.extra} character${stats.extra === 1 ? "" : "s"} beyond the 100. Well done!`;
+  s.append(h, p);
+  if (stats.fixes.length) {
+    const ol = document.createElement("ol");
+    for (const f of stats.fixes) { const li = document.createElement("li"); li.textContent = f.fixed; const sm = document.createElement("small"); sm.textContent = pinyinOf(f.fixed) + " · You said: " + f.said; li.append(sm); ol.append(li); }
+    s.append(ol);
+  }
+  const again = document.createElement("button"); again.className = "mic"; again.type = "button"; again.textContent = "Start a new conversation"; again.style.marginTop = "14px";
+  again.addEventListener("click", start);
+  s.append(again); log.append(s);
+  $("controls").hidden = true; $("typeBox").hidden = true; setStatus(""); setUI(); scrollEnd();
+}
+
+function start() {
+  log.textContent = ""; asked = new Set(); ended = false; topic = null; inTopic = 0;
+  stats = { answers: 0, withMistakes: 0, fixes: [], extra: 0 };
+  $("controls").hidden = false; $("typeBox").hidden = false;
+  const t = pick(Object.keys(B.topics)); const f = fresh(B.topics[t].open);
+  ask(pick(f.length ? f : B.topics[t].open), -1);
+  setStatus("Press Answer, speak in Chinese, and Bea will listen until you stop.");
+  setUI();
+}
+
+/* ---------- Controls ---------- */
+$("replay").addEventListener("click", () => playQueue(lastFiles));
+$("end").addEventListener("click", endConversation);
+$("typeForm").addEventListener("submit", ev => { ev.preventDefault(); const v = $("typed").value; $("typed").value = ""; submit([v]); });
+$("speed").addEventListener("change", e => { rate = Number(e.target.value) || 0.9; player.playbackRate = rate; });
+$("enToggle").addEventListener("click", e => { showEn = !showEn; e.currentTarget.setAttribute("aria-pressed", String(showEn)); document.querySelectorAll(".bot .en").forEach(el => el.hidden = !showEn); });
+$("wordsToggle").addEventListener("click", e => { const s = $("words"); s.hidden = !s.hidden; e.currentTarget.setAttribute("aria-pressed", String(!s.hidden)); });
+(function renderWords() {
+  const g = $("wgrid");
+  for (const [h, p, en] of B.vocab) { const d = document.createElement("div"); d.className = "w"; d.append(Object.assign(document.createElement("b"), { textContent: h }), Object.assign(document.createElement("i"), { textContent: p }), Object.assign(document.createElement("span"), { textContent: en })); g.append(d); }
+})();
+
+/* A first tap satisfies the browser's audio and microphone rules, then the conversation begins. */
+$("gateBtn").addEventListener("click", () => {
+  $("gate").hidden = true;
+  if (NATIVE && window.speechSynthesis) { try { window.speechSynthesis.getVoices(); } catch {} }
+  start();
+});
+</script>
+</body>
+</html>
